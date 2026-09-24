@@ -1,5 +1,4 @@
 import pygame
-import os
 import time
 import math
 import random
@@ -13,21 +12,24 @@ async def main():
     pygame.display.set_caption("ooo")
     clock = pygame.time.Clock()
 
-    pygame.mixer.music.load(os.path.join("lab 2", "Spring In My Step.mp3"))
+    pygame.mixer.music.load("assets/Spring In My Step.ogg")
     pygame.mixer.music.set_volume(0.25)
     pygame.mixer.music.play(-1)
 
     class Constants:
         PLAYER_HITBOX = (50, 50)
-        PLAYER_IMG = pygame.transform.scale(pygame.image.load(os.path.join("lab 2", "player.png")).convert_alpha(), PLAYER_HITBOX)
+        PLAYER_IMG = pygame.transform.scale(pygame.image.load("assets/player.png").convert_alpha(), PLAYER_HITBOX)
 
         COLLECTIBLE_HITBOX = (30, 30)
-        COLLECTIBLE_IMG = pygame.transform.scale(pygame.image.load(os.path.join("lab 2", "normal.png")).convert_alpha(), COLLECTIBLE_HITBOX)
+        COLLECTIBLE_IMG = pygame.transform.scale(pygame.image.load("assets/normal.png").convert_alpha(), COLLECTIBLE_HITBOX)
 
-        BG = pygame.transform.scale(pygame.image.load(os.path.join("lab 2", "nine paws.png")).convert_alpha(), DISPLAY)
+        BG = pygame.transform.scale(pygame.image.load("assets/nine paws.png").convert_alpha(), DISPLAY)
         BG.set_alpha(150)
 
         GRAVITY = 0.95
+
+        FITH = [pygame.mixer.Sound("assets/fith {}.ogg".format(x)) for x in range(1, 3+1)]
+        for sound in FITH: sound.set_volume(0.2)
 
     class Map:
         PLATFORMS = [
@@ -138,9 +140,7 @@ async def main():
         for i, hitbox in enumerate(Map.COLLECTIBLES_HITBOXES):
             if playerRect.colliderect(hitbox):
                 collected.append(i)
-                temp = pygame.mixer.Sound(os.path.join("lab 2", "fith {}.wav".format(random.randint(1,3))))
-                temp.set_volume(0.2)
-                temp.play()
+                Constants.FITH[random.randint(0, len(Constants.FITH)-1)].play()
 
         for i in reversed(collected):
             Map.COLLECTIBLES.pop(i)
@@ -183,6 +183,7 @@ async def main():
 
         pygame.display.flip()
         clock.tick(60)
+        await asyncio.sleep(0)
 
     pygame.mixer.music.stop()
     pygame.quit()
