@@ -1,3 +1,5 @@
+'''this code was pulled straight from the lesson notes, i did not write this, the lesson did'''
+
 import pygame
 import random
 import sys
