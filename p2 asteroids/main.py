@@ -15,16 +15,24 @@ class Constants:
     GRAVITY = 0.08
     BOUNCE = 1
     LDM = True
-    DAMPEN = 0.5
-    SMOOTH = 0.99
+    COLLISION_DAMPEN = 0.5
+    DAMPEN = 0.99
+
+    class Drive:
+        ACCEL_MUL = 0.075
+        OMEGA_MUL = 0.175
 
 class Drive:
     def __init__(self):
-        self.p = pygame.math.Vector2(DISPLAY[0], DISPLAY[1])
+        self.r = 10
+        self.hitbox = (2*self.r, 2*self.r)
+        
+        self.p = pygame.math.Vector2(DISPLAY[0]//2, DISPLAY[1]//2)
         self.v = pygame.math.Vector2(0,0)
         self.a = pygame.math.Vector2(0,0)
         self.h = 0
         self.o = 0
+        self.aa = 0
 
     def tick(self):
         self.p+=self.v
@@ -32,9 +40,35 @@ class Drive:
         self.a=pygame.math.Vector2(0,0)
         
         self.h+=self.o
-        self.o*=Constants.SMOOTH
+        self.o+=self.aa
+        self.h%=360
 
-class Ball:
+        self.v*=Constants.DAMPEN
+        self.o*=Constants.DAMPEN
+
+        self.p.x%=DISPLAY[0]
+        self.p.y%=DISPLAY[1]
+
+class Boom:
+    def __init__(self, pos, heading, speed=8):
+        self.p = pygame.math.Vector2(pos)
+        self.v = pygame.math.Vector2(0, -speed).rotate(heading)
+        self.life = 60
+
+    def tick(self, screen):
+        self.p += self.v
+        self.life -= 1
+
+        pygame.draw.circle(
+            screen,
+            (255, 245, 125),
+            (int(self.p.x), int(self.p.y)),
+            2
+        )
+        if self.p.x%DISPLAY[0]!=self.p.x: self.life=0
+        if self.p.y%DISPLAY[1]!=self.p.y: self.life=0
+
+class Asteroid:
     def __init__(self):
         self.r = random.random()*15+5
         self.pos = pygame.math.Vector2(random.uniform(self.r, DISPLAY[0]-self.r), random.uniform(self.r, DISPLAY[1]-self.r))
@@ -62,46 +96,58 @@ class Ball:
             pygame.draw.ellipse(screen, (0,0,0), (x+r*0.25-r*0.08, y-r*0.16-r*0.16, r*0.16, r*0.32))
             pygame.draw.ellipse(screen, (0,0,0), (x-r*0.25-r*0.08, y-r*0.16-r*0.16, r*0.16, r*0.32))
 
-def collisions(objects:list[Ball]):
-    for i in range(len(objects)):
-        a = objects[i]
-        for ie in range(i+1, len(objects)):
-            b = objects[ie]
-            dx=b.pos.x-a.pos.x
-            dy=b.pos.y-a.pos.y
-            sd=dx*dx+dy*dy
-            smallest = a.r + b.r
+class Collisions:
+    def asteroids(objects:list[Asteroid]):
+        for i in range(len(objects)):
+            a = objects[i]
+            for ie in range(i+1, len(objects)):
+                b = objects[ie]
+                dx=b.pos.x-a.pos.x
+                dy=b.pos.y-a.pos.y
+                sd=dx*dx+dy*dy
+                smallest = a.r + b.r
 
-            if sd == 0:
-                dx = 0.01
-                dy = 0.01
-                sd = dx*dx+dy*dy
+                if sd == 0:
+                    dx = 0.01
+                    dy = 0.01
+                    sd = dx*dx+dy*dy
 
-            d=math.sqrt(sd)
+                d=math.sqrt(sd)
 
-            if d<smallest:
-                nx = dx/d
-                ny = dy/d
+                if d<smallest:
+                    nx = dx/d
+                    ny = dy/d
 
-                rvx = b.vel.x-a.vel.x
-                rvy = b.vel.y-a.vel.y
-                s=rvx*nx+rvy*ny
-                if s>0: continue
+                    rvx = b.vel.x-a.vel.x
+                    rvy = b.vel.y-a.vel.y
+                    s=rvx*nx+rvy*ny
+                    if s>0: continue
 
-                massSum = a.m+b.m
-                a.vel.x += 2*b.m/massSum*s*nx*Constants.DAMPEN
-                a.vel.y += 2*b.m/massSum*s*ny*Constants.DAMPEN
-                b.vel.x -= 2*a.m/massSum*s*nx*Constants.DAMPEN
-                b.vel.y -= 2*a.m/massSum*s*ny*Constants.DAMPEN
+                    massSum = a.m+b.m
+                    a.vel.x += 2*b.m/massSum*s*nx*Constants.COLLISION_DAMPEN
+                    a.vel.y += 2*b.m/massSum*s*ny*Constants.COLLISION_DAMPEN
+                    b.vel.x -= 2*a.m/massSum*s*nx*Constants.COLLISION_DAMPEN
+                    b.vel.y -= 2*a.m/massSum*s*ny*Constants.COLLISION_DAMPEN
 
-                overlap = smallest-d
-                a.pos.x-=nx*overlap/2
-                a.pos.y-=ny*overlap/2
-                b.pos.x+=nx*overlap/2
-                b.pos.y+=ny*overlap/2    
+                    overlap = smallest-d
+                    a.pos.x-=nx*overlap/2
+                    a.pos.y-=ny*overlap/2
+                    b.pos.x+=nx*overlap/2
+                    b.pos.y+=ny*overlap/2
+    def boom(booms, objects):
+        for boom in booms:
+            for ball in objects:
+                dx = boom.p.x - ball.pos.x
+                dy = boom.p.y - ball.pos.y
 
-objects:list[Ball] = [Ball() for x in range(10)]
-swerve = Drive()
+                if dx * dx + dy * dy < ball.r * ball.r:
+                    boom.life = 0
+                    objects.remove(ball)
+                    break
+
+objects:list[Asteroid] = [Asteroid() for x in range(10)]
+booms:list[Boom] = []
+player = Drive()
 
 running = True
 while running:
@@ -109,19 +155,41 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.KEYDOWN:
-            swerve.a = pygame.math.Vector2((event.key == pygame.K_s)-(event.key == pygame.K_w), (event.key == pygame.K_a)-(event.key == pygame.K_d))
-            swerve.o = (event.key == pygame.K_l)-(event.key == pygame.K_j)
+            if event.key == pygame.K_SPACE:
+                booms.append(Boom(player.p + pygame.math.Vector2(0, -player.hitbox[1] / 2).rotate(player.h), player.h))
 
-    pygame.draw.circle(screen, self.c, (x, y), r)
+    keys = pygame.key.get_pressed()
+
+    # player.a = pygame.math.Vector2(keys[pygame.K_d]-keys[pygame.K_a], keys[pygame.K_s]-keys[pygame.K_w]).rotate(player.h)*Constants.Drive.ACCEL_MUL
+    # player.aa = (keys[pygame.K_l]-keys[pygame.K_j])*Constants.Drive.OMEGA_MUL
+
+    player.a = pygame.math.Vector2(0, -keys[pygame.K_w]).rotate(player.h)*Constants.Drive.ACCEL_MUL
+    player.aa = (keys[pygame.K_d]-keys[pygame.K_a])*Constants.Drive.OMEGA_MUL
+
         
 
     screen.fill((30, 30, 50))
+    pygame.draw.polygon(screen, (255,255,255), [
+        player.p + pygame.math.Vector2(0, -player.hitbox[1]/2).rotate(player.h),
+        player.p + pygame.math.Vector2(-player.hitbox[0]/2, player.hitbox[1]/2).rotate(player.h),
+        player.p + pygame.math.Vector2(player.hitbox[0]/2, player.hitbox[1]/2).rotate(player.h)
+    ])
+    pygame.draw.polygon(screen, (255,200,200), [
+        player.p + pygame.math.Vector2(0, player.hitbox[1]/2).rotate(player.h),
+        player.p + pygame.math.Vector2(-player.hitbox[0]/2, player.hitbox[1]).rotate(player.h),
+        player.p + pygame.math.Vector2(player.hitbox[0]/2, player.hitbox[1]).rotate(player.h)
+    ])
 
-
-    swerve.tick()
-    collisions(objects)
+    player.tick()
+    Collisions.asteroids(objects)
+    Collisions.boom(booms, objects)
     for object in objects:
         object.tick(screen)
+    for boom in booms:
+        if boom.life > 0:
+            boom.tick(screen)
+        else:
+            booms.remove(boom)
 
     pygame.display.flip()
     clock.tick(60)
