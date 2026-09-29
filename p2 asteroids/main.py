@@ -5,7 +5,7 @@ import math
 
 pygame.init()
 
-DISPLAY = (600, 400)
+DISPLAY = (1000, 600)
 screen = pygame.display.set_mode(DISPLAY)
 pygame.display.set_caption("asteroids but i gave you a swerve rocket")
 clock = pygame.time.Clock()
@@ -16,16 +16,19 @@ class Constants:
     BOUNCE = 1
     LDM = True
     COLLISION_DAMPEN = 0.5
-    DAMPEN = 0.99
+
+    COLLISION_LEEWAY = 100
 
     class Drive:
         ACCEL_MUL = 0.075
         OMEGA_MUL = 0.175
 
+        SWERVE = True
+        DAMPEN = 0.99
+
 class Drive:
     def __init__(self):
-        self.r = 10
-        self.hitbox = (2*self.r, 2*self.r)
+        self.hitbox = (20, 30)
         
         self.p = pygame.math.Vector2(DISPLAY[0]//2, DISPLAY[1]//2)
         self.v = pygame.math.Vector2(0,0)
@@ -43,17 +46,19 @@ class Drive:
         self.o+=self.aa
         self.h%=360
 
-        self.v*=Constants.DAMPEN
-        self.o*=Constants.DAMPEN
+        self.v*=Constants.Drive.DAMPEN
+        self.o*=Constants.Drive.DAMPEN
 
-        self.p.x%=DISPLAY[0]
-        self.p.y%=DISPLAY[1]
+        # self.p.x%=DISPLAY[0]
+        # self.p.y%=DISPLAY[1]
+        if self.p.x%DISPLAY[0]!=self.p.x: self.v.x*=-1
+        if self.p.y%DISPLAY[1]!=self.p.y: self.v.y*=-1
 
 class Boom:
     def __init__(self, pos, heading, speed=8):
         self.p = pygame.math.Vector2(pos)
         self.v = pygame.math.Vector2(0, -speed).rotate(heading)
-        self.life = 60
+        self.life = math.sqrt(DISPLAY[0]**2+DISPLAY[1]**2)
 
     def tick(self, screen):
         self.p += self.v
@@ -137,10 +142,10 @@ class Collisions:
     def boom(booms, objects):
         for boom in booms:
             for ball in objects:
-                dx = boom.p.x - ball.pos.x
-                dy = boom.p.y - ball.pos.y
+                dx = boom.p.x-ball.pos.x
+                dy = boom.p.y-ball.pos.y
 
-                if dx * dx + dy * dy < ball.r * ball.r:
+                if dx*dx + dy*dy < (ball.r*ball.r+Constants.COLLISION_LEEWAY):
                     boom.life = 0
                     objects.remove(ball)
                     break
@@ -155,16 +160,17 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
+            if event.key == pygame.K_SPACE or event.key == pygame.K_k:
                 booms.append(Boom(player.p + pygame.math.Vector2(0, -player.hitbox[1] / 2).rotate(player.h), player.h))
 
     keys = pygame.key.get_pressed()
 
-    # player.a = pygame.math.Vector2(keys[pygame.K_d]-keys[pygame.K_a], keys[pygame.K_s]-keys[pygame.K_w]).rotate(player.h)*Constants.Drive.ACCEL_MUL
-    # player.aa = (keys[pygame.K_l]-keys[pygame.K_j])*Constants.Drive.OMEGA_MUL
-
-    player.a = pygame.math.Vector2(0, -keys[pygame.K_w]).rotate(player.h)*Constants.Drive.ACCEL_MUL
-    player.aa = (keys[pygame.K_d]-keys[pygame.K_a])*Constants.Drive.OMEGA_MUL
+    if Constants.Drive.SWERVE:
+        player.a = pygame.math.Vector2((keys[pygame.K_d] or keys[pygame.K_RIGHT])-(keys[pygame.K_a] or keys[pygame.K_LEFT]), (keys[pygame.K_s] or keys[pygame.K_DOWN])-(keys[pygame.K_w] or keys[pygame.K_UP]))*Constants.Drive.ACCEL_MUL
+        player.aa = (keys[pygame.K_l]-keys[pygame.K_j])*Constants.Drive.OMEGA_MUL
+    else:
+        player.a = pygame.math.Vector2(0, -(keys[pygame.K_w] or keys[pygame.K_UP])).rotate(player.h)*Constants.Drive.ACCEL_MUL
+        player.aa = ((keys[pygame.K_d] or keys[pygame.K_RIGHT])-(keys[pygame.K_a] or keys[pygame.K_LEFT]))*Constants.Drive.OMEGA_MUL
 
         
 
@@ -174,11 +180,11 @@ while running:
         player.p + pygame.math.Vector2(-player.hitbox[0]/2, player.hitbox[1]/2).rotate(player.h),
         player.p + pygame.math.Vector2(player.hitbox[0]/2, player.hitbox[1]/2).rotate(player.h)
     ])
-    pygame.draw.polygon(screen, (255,200,200), [
-        player.p + pygame.math.Vector2(0, player.hitbox[1]/2).rotate(player.h),
-        player.p + pygame.math.Vector2(-player.hitbox[0]/2, player.hitbox[1]).rotate(player.h),
-        player.p + pygame.math.Vector2(player.hitbox[0]/2, player.hitbox[1]).rotate(player.h)
-    ])
+    # pygame.draw.polygon(screen, (255,200,200), [
+    #     player.p + pygame.math.Vector2(0, player.hitbox[1]/2).rotate(player.h),
+    #     player.p + pygame.math.Vector2(-player.hitbox[0]/4, player.hitbox[1]).rotate(player.h),
+    #     player.p + pygame.math.Vector2(player.hitbox[0]/4, player.hitbox[1]).rotate(player.h)
+    # ])
 
     player.tick()
     Collisions.asteroids(objects)
