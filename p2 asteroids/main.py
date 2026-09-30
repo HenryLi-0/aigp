@@ -23,7 +23,7 @@ class Constants:
         ACCEL_MUL = 0.075
         OMEGA_MUL = 0.175
 
-        SWERVE = True
+        SWERVE = False
         DAMPEN = 0.99
 
 class Drive:
@@ -169,10 +169,8 @@ while running:
         player.a = pygame.math.Vector2((keys[pygame.K_d] or keys[pygame.K_RIGHT])-(keys[pygame.K_a] or keys[pygame.K_LEFT]), (keys[pygame.K_s] or keys[pygame.K_DOWN])-(keys[pygame.K_w] or keys[pygame.K_UP]))*Constants.Drive.ACCEL_MUL
         player.aa = (keys[pygame.K_l]-keys[pygame.K_j])*Constants.Drive.OMEGA_MUL
     else:
-        player.a = pygame.math.Vector2(0, -(keys[pygame.K_w] or keys[pygame.K_UP])).rotate(player.h)*Constants.Drive.ACCEL_MUL
+        player.a = pygame.math.Vector2(0, (keys[pygame.K_s] or keys[pygame.K_DOWN])-(keys[pygame.K_w] or keys[pygame.K_UP])).rotate(player.h)*Constants.Drive.ACCEL_MUL
         player.aa = ((keys[pygame.K_d] or keys[pygame.K_RIGHT])-(keys[pygame.K_a] or keys[pygame.K_LEFT]))*Constants.Drive.OMEGA_MUL
-
-        
 
     screen.fill((30, 30, 50))
     pygame.draw.polygon(screen, (255,255,255), [
