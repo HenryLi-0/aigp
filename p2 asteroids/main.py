@@ -26,6 +26,14 @@ class Constants:
         SWERVE = False
         DAMPEN = 0.99
 
+    class Enemy:
+        SPEED = 2
+        ATTACK_SPEED = 3
+        TURN_SPEED = 2.5
+        FOV = 120
+        DETECTION_RANGE = 500
+        DAMPEN = 0.98
+
 class Drive:
     def __init__(self):
         self.hitbox = (20, 30)
@@ -53,6 +61,53 @@ class Drive:
         # self.p.y%=DISPLAY[1]
         if self.p.x%DISPLAY[0]!=self.p.x: self.v.x*=-1
         if self.p.y%DISPLAY[1]!=self.p.y: self.v.y*=-1
+
+class Enemy:
+    def __init__(self):
+        self.p = pygame.math.Vector2(random.uniform(0, DISPLAY[0]), random.uniform(0, DISPLAY[1]))
+        self.v = pygame.math.Vector2(random.uniform(-1,1), random.uniform(-1,1))
+        self.h = random.uniform(0,360)
+        self.state = "patrol"
+        self.r = 12
+
+    def tick(self, screen, target):
+        to_target = target.p-self.p
+        distance = to_target.length()
+
+        if distance != 0:
+            direction = to_target.normalize()
+            forward = pygame.math.Vector2(0,-1).rotate(self.h)
+            dot = max(-1, min(1, forward.dot(direction)))
+            angle = math.degrees(math.acos(dot))
+
+            if distance <= Constants.Enemy.DETECTION_RANGE and angle <= Constants.Enemy.FOV/2:
+                self.state = "attack"
+            elif distance > Constants.Enemy.DETECTION_RANGE or angle > Constants.Enemy.FOV/2:
+                self.state = "patrol"
+
+        if self.state == "patrol":
+            self.h+=random.uniform(-Constants.Enemy.TURN_SPEED, Constants.Enemy.TURN_SPEED)
+            self.v=pygame.math.Vector2(0,-Constants.Enemy.SPEED).rotate(self.h)
+        else:
+            targetH = math.degrees(math.atan2(to_target.x, -to_target.y))
+            difference = (targetH-self.h+180)%360-180
+            self.h += max(-Constants.Enemy.TURN_SPEED, min(Constants.Enemy.TURN_SPEED, difference))
+            self.v=pygame.math.Vector2(0,-Constants.Enemy.ATTACK_SPEED).rotate(self.h)
+
+        self.p+=self.v
+        self.v*=Constants.Enemy.DAMPEN
+
+        if self.p.x-self.r<0 or self.p.x+self.r>DISPLAY[0]:
+            self.v.x*=-1
+            self.h=-self.h
+        if self.p.y-self.r<0 or self.p.y+self.r>DISPLAY[1]:
+            self.v.y*=-1
+            self.h=180-self.h
+
+        color = (255,80,80) if self.state == "attack" else (80,180,255)
+
+        pygame.draw.circle( screen, color, (int(self.p.x), int(self.p.y)), self.r)
+        pygame.draw.line(screen, (255,255,255), self.p, self.p + pygame.math.Vector2(0,-self.r).rotate(self.h), 2)
 
 class Boom:
     def __init__(self, pos, heading, speed=8):
@@ -139,18 +194,27 @@ class Collisions:
                     a.pos.y-=ny*overlap/2
                     b.pos.x+=nx*overlap/2
                     b.pos.y+=ny*overlap/2
-    def boom(booms, objects):
+    def boom(booms, balls, enemies):
         for boom in booms:
-            for ball in objects:
+            for ball in balls:
                 dx = boom.p.x-ball.pos.x
                 dy = boom.p.y-ball.pos.y
 
                 if dx*dx + dy*dy < (ball.r*ball.r+Constants.COLLISION_LEEWAY):
                     boom.life = 0
-                    objects.remove(ball)
+                    balls.remove(ball)
+                    break
+            for enemy in enemies:
+                dx = boom.p.x-enemy.p.x
+                dy = boom.p.y-enemy.p.y
+
+                if dx*dx + dy*dy < (enemy.r*enemy.r+Constants.COLLISION_LEEWAY):
+                    boom.life = 0
+                    enemies.remove(enemy)
                     break
 
-objects:list[Asteroid] = [Asteroid() for x in range(10)]
+asteroids:list[Asteroid] = [Asteroid() for x in range(10)]
+enemies:list[Enemy] = [Enemy() for x in range(3)]
 booms:list[Boom] = []
 player = Drive()
 
@@ -185,10 +249,12 @@ while running:
     # ])
 
     player.tick()
-    Collisions.asteroids(objects)
-    Collisions.boom(booms, objects)
-    for object in objects:
+    Collisions.asteroids(asteroids)
+    Collisions.boom(booms, asteroids, enemies)
+    for object in asteroids:
         object.tick(screen)
+    for enemy in enemies:
+        enemy.tick(screen, player)
     for boom in booms:
         if boom.life > 0:
             boom.tick(screen)
