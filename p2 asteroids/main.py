@@ -17,7 +17,9 @@ class Constants:
     LDM = True
     COLLISION_DAMPEN = 0.5
 
-    COLLISION_LEEWAY = 100
+    COLLISION_LEEWAY = 900
+    SPAWN_SAFETY = 100
+    SPAWN_CHANCE = 0.02
 
     class Drive:
         ACCEL_MUL = 0.075
@@ -132,6 +134,19 @@ class Boom:
         if self.p.x%DISPLAY[0]!=self.p.x: self.life=0
         if self.p.y%DISPLAY[1]!=self.p.y: self.life=0
 
+class Beam:
+    def __init__(self, player):
+        self.start = player.p + pygame.math.Vector2(0, -2*player.hitbox[0]).rotate(player.h+10*player.o*random.random())
+        self.direction = pygame.math.Vector2(0, -1).rotate(player.h)
+        self.end = self.start + self.direction * math.hypot(DISPLAY[0], DISPLAY[1])
+        self.life = 8
+
+    def tick(self, screen):
+        self.life -= 1
+        pygame.draw.line(screen, (255, 40, 40), self.start, self.end, random.randint(18,20))
+        pygame.draw.line(screen, (255, 220, 220), self.start, self.end, random.randint(10,15))
+        pygame.draw.line(screen, (255, 255, 255), self.start, self.end, random.randint(3,5))
+
 class Asteroid:
     def __init__(self):
         self.r = random.random()*15+5
@@ -216,10 +231,34 @@ class Collisions:
                     boom.life = 0
                     enemies.remove(enemy)
                     break
+    def beam(beams, balls, enemies):
+        for beam in beams:
+            direction = beam.direction.normalize()
+            perpendicular = pygame.math.Vector2(-direction.y, direction.x)
+
+            for ball in balls:
+                relative = ball.pos - beam.start
+                along = relative.dot(direction)
+                if along < 0:
+                    continue
+                side = abs(relative.dot(perpendicular))
+                if side <= ball.r + 9:
+                    balls.remove(ball)
+
+            for enemy in enemies:
+                relative = enemy.p - beam.start
+                along = relative.dot(direction)
+                if along < 0:
+                    continue
+                side = abs(relative.dot(perpendicular))
+                if side <= enemy.r + 9:
+                    enemies.remove(enemy)
+
 
 asteroids:list[Asteroid] = [Asteroid() for x in range(10)]
 enemies:list[Enemy] = [Enemy() for x in range(3)]
 booms:list[Boom] = []
+beams:list[Beam] = []
 player = Drive()
 
 running = True
@@ -229,11 +268,14 @@ while running:
             running = False
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE or event.key == pygame.K_k:
-                booms.append(Boom(player.p + pygame.math.Vector2(0, -player.hitbox[1] / 2).rotate(player.h), player.h))
+                for i in range(10): booms.append(Boom(player.p + pygame.math.Vector2(0, -player.hitbox[1] / 2).rotate(player.h), player.h+3*player.o*random.random()))
             if event.key == pygame.K_1:
                 Constants.Drive.SWERVE = not(Constants.Drive.SWERVE)
 
     keys = pygame.key.get_pressed()
+
+    if keys[pygame.K_LSHIFT]:
+        for i in range(10): beams.append(Beam(player))
 
     if Constants.Drive.SWERVE:
         player.a = pygame.math.Vector2((keys[pygame.K_d] or keys[pygame.K_RIGHT])-(keys[pygame.K_a] or keys[pygame.K_LEFT]), (keys[pygame.K_s] or keys[pygame.K_DOWN])-(keys[pygame.K_w] or keys[pygame.K_UP]))*Constants.Drive.ACCEL_MUL
@@ -257,6 +299,7 @@ while running:
     player.tick()
     Collisions.asteroids(asteroids)
     Collisions.boom(booms, asteroids, enemies)
+    Collisions.beam(beams, asteroids, enemies)
     for object in asteroids:
         object.tick(screen)
     for enemy in enemies:
@@ -266,6 +309,21 @@ while running:
             boom.tick(screen)
         else:
             booms.remove(boom)
+    for beam in beams:
+        if beam.life > 0:
+            beam.tick(screen)
+        else:
+            beams.remove(beam)
+
+    if random.random() < Constants.SPAWN_CHANCE*(1+5*keys[pygame.K_LSHIFT]):
+        temp = Asteroid()
+        if temp.pos.distance_to(player.p) > Constants.SPAWN_SAFETY:
+            asteroids.append(temp)
+    if random.random() < Constants.SPAWN_CHANCE*(1+5*keys[pygame.K_LSHIFT]):
+        temp = Enemy()
+        if temp.p.distance_to(player.p) > Constants.SPAWN_SAFETY:
+            enemies.append(temp)
+
 
     pygame.display.flip()
     clock.tick(60)
