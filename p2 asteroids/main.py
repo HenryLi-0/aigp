@@ -59,8 +59,12 @@ class Drive:
 
         # self.p.x%=DISPLAY[0]
         # self.p.y%=DISPLAY[1]
-        if self.p.x%DISPLAY[0]!=self.p.x: self.v.x*=-1
-        if self.p.y%DISPLAY[1]!=self.p.y: self.v.y*=-1
+        if self.p.x-self.hitbox[0]/2<0 or self.p.x+self.hitbox[0]/2>DISPLAY[0]:
+            self.v.x*=-1
+            self.h=-self.h
+        if self.p.y-self.hitbox[1]/2<0 or self.p.y+self.hitbox[1]/2>DISPLAY[1]:
+            self.v.y*=-1
+            self.h=180-self.h
 
 class Enemy:
     def __init__(self):
@@ -226,6 +230,8 @@ while running:
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE or event.key == pygame.K_k:
                 booms.append(Boom(player.p + pygame.math.Vector2(0, -player.hitbox[1] / 2).rotate(player.h), player.h))
+            if event.key == pygame.K_1:
+                Constants.Drive.SWERVE = not(Constants.Drive.SWERVE)
 
     keys = pygame.key.get_pressed()
 
@@ -237,7 +243,7 @@ while running:
         player.aa = ((keys[pygame.K_d] or keys[pygame.K_RIGHT])-(keys[pygame.K_a] or keys[pygame.K_LEFT]))*Constants.Drive.OMEGA_MUL
 
     screen.fill((30, 30, 50))
-    pygame.draw.polygon(screen, (255,255,255), [
+    pygame.draw.polygon(screen, (255, 175, 25) if Constants.Drive.SWERVE else (255,255,255), [
         player.p + pygame.math.Vector2(0, -player.hitbox[1]/2).rotate(player.h),
         player.p + pygame.math.Vector2(-player.hitbox[0]/2, player.hitbox[1]/2).rotate(player.h),
         player.p + pygame.math.Vector2(player.hitbox[0]/2, player.hitbox[1]/2).rotate(player.h)
